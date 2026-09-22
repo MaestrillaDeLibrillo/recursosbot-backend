@@ -26,43 +26,38 @@ app.get('/webhook', (req, res) => {
 });
 
 // 2. Recepción de mensajes DMs
-app.post('/webhook', async (req, res) => {
-  console.log('[PUNTO DE ENTRADA] Petición POST recibida en /webhook');
+app.post('/webhook', (req, res) => {
+  // Imprime todo el cuerpo de la petición que envía Meta
+  console.log('[DEBUG WEBHOOK] Payload completo:', JSON.stringify(req.body, null, 2));
+
   const body = req.body;
 
   if (body.object === 'instagram' || body.object === 'page') {
-    res.status(200).send('EVENT_RECEIVED');
+    body.entry?.forEach(entry => {
+      // Si la entrada trae eventos de messaging
+      if (entry.messaging) {
+        entry.messaging.forEach(messagingEvent => {
+          console.log('[DEBUG EVENTO]', JSON.stringify(messagingEvent, null, 2));
 
-    for (const entry of body.entry || []) {
-      const webhookEvent = entry.messaging?.[0];
+          const senderId = messagingEvent.sender?.id;
+          const messageText = messagingEvent.message?.text;
 
-      if (!webhookEvent) {
-        console.log('[BOT] Evento sin estructura messaging.');
-        continue;
-      }
-
-      if (!webhookEvent.message || !webhookEvent.message.text) {
-        console.log('[BOT] Evento ignorado (es lectura/escritura/sin texto).');
-        continue;
-      }
-
-      const senderId = webhookEvent.sender.id;
-      const messageText = webhookEvent.message.text;
-
-      console.log(`[DM DETECTADO] Texto: "${messageText}" | ID: ${senderId}`);
-
-      const replyMessage = getResponseForMessage(messageText);
-
-      if (replyMessage) {
-        console.log(`[BOT] Coincidencia encontrada ("${replyMessage}"). Enviando...`);
-        await sendInstagramMessage(senderId, replyMessage);
+          if (messageText) {
+            console.log(`[DEBUG MENSAJE] De: ${senderId} | Texto: "${messageText}"`);
+            // Aquí continúa tu lógica de búsqueda en Google Sheets...
+          } else {
+            console.log('[BOT] Evento ignorado (es lectura/escritura/sin texto).');
+          }
+        });
       } else {
-        console.log(`[BOT] No hay coincidencia para el texto: "${messageText}"`);
+        console.log('[BOT] Evento sin estructura messaging.');
       }
-    }
-  } else {
-    res.sendStatus(404);
+    });
+
+    return res.status(200).send('EVENT_RECEIVED');
   }
+
+  res.sendStatus(404);
 });
 
 // 3. Envío de respuesta vía Meta Graph API
