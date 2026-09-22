@@ -5,8 +5,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const auth = new google.auth.GoogleAuth({
-  keyFile: path.resolve('./google-credentials.json'),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  // Si existe la variable en Render la parsea; si no, usa el archivo local
+  credentials: process.env.GOOGLE_CREDENTIALS_JSON 
+    ? JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON) 
+    : undefined,
+  keyFile: process.env.GOOGLE_CREDENTIALS_JSON ? undefined : 'google-credentials.json',
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
