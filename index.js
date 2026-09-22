@@ -26,38 +26,40 @@ app.get('/webhook', (req, res) => {
 });
 
 // 2. Recepción de mensajes DMs
-app.post('/webhook', (req, res) => {
-  // Imprime todo el cuerpo de la petición que envía Meta
-  console.log('[DEBUG WEBHOOK] Payload completo:', JSON.stringify(req.body, null, 2));
-
+app.post('/webhook', async (req, res) => {
   const body = req.body;
 
   if (body.object === 'instagram' || body.object === 'page') {
+    // Responder inmediatamente a Meta con 200 OK para evitar reintentos
+    res.status(200).send('EVENT_RECEIVED');
+
     body.entry?.forEach(entry => {
-      // Si la entrada trae eventos de messaging
-      if (entry.messaging) {
-        entry.messaging.forEach(messagingEvent => {
-          console.log('[DEBUG EVENTO]', JSON.stringify(messagingEvent, null, 2));
+      entry.messaging?.forEach(async (messagingEvent) => {
+        const senderId = messagingEvent.sender?.id;
+        const rawText = messagingEvent.message?.text;
 
-          const senderId = messagingEvent.sender?.id;
-          const messageText = messagingEvent.message?.text;
+        // Filtrar y procesar SOLAMENTE si el evento contiene un mensaje con texto
+        if (rawText) {
+          const cleanText = rawText.toLowerCase().trim();
+          console.log(`📩 [DM Recibido] De ID: ${senderId} | Texto: "${cleanText}"`);
 
-          if (messageText) {
-            console.log(`[DEBUG MENSAJE] De: ${senderId} | Texto: "${messageText}"`);
-            // Aquí continúa tu lógica de búsqueda en Google Sheets...
+          // Buscar coincidencia en las reglas de Google Sheets
+          const regla = reglas.find(r => r.keyword.toLowerCase().trim() === cleanText);
+
+          if (regla) {
+            console.log(`🚀 [Coincidencia] Palabra: "${cleanText}" -> Enviando respuesta: "${regla.response}"`);
+            
+            // Llamada a tu función existente para responder vía Graph API
+            await sendInstagramMessage(senderId, regla.response);
           } else {
-            console.log('[BOT] Evento ignorado (es lectura/escritura/sin texto).');
+            console.log(`⚠️ [Sin Coincidencia] Ninguna regla en Google Sheets para: "${cleanText}"`);
           }
-        });
-      } else {
-        console.log('[BOT] Evento sin estructura messaging.');
-      }
+        }
+      });
     });
-
-    return res.status(200).send('EVENT_RECEIVED');
+  } else {
+    res.sendStatus(404);
   }
-
-  res.sendStatus(404);
 });
 
 // 3. Envío de respuesta vía Meta Graph API
