@@ -32,21 +32,28 @@ app.post('/webhook', async (req, res) => {
 
     const body = req.body;
 
-    // Responder rápido a Meta
+    // Responder inmediatamente a Meta
     res.status(200).send('EVENT_RECEIVED');
 
-    if (body.object !== 'instagram' && body.object !== 'page') {
+    if (body.object !== 'instagram') {
         console.log(`[Webhook] Object ignorado: ${body.object}`);
         return;
     }
 
     try {
         for (const entry of body.entry || []) {
-            for (const messagingEvent of entry.messaging || []) {
-                console.log('[Webhook] Evento:', JSON.stringify(messagingEvent, null, 2));
+            for (const change of entry.changes || []) {
+                if (change.field !== 'messages') {
+                    console.log(`[Webhook] Cambio ignorado: ${change.field}`);
+                    continue;
+                }
 
-                const senderId = messagingEvent.sender?.id;
-                const rawText = messagingEvent.message?.text;
+                const value = change.value;
+
+                console.log('[Webhook] Evento messages:', JSON.stringify(value, null, 2));
+
+                const senderId = value?.sender?.id;
+                const rawText = value?.message?.text;
 
                 if (!senderId) {
                     console.log('[Webhook] Evento sin senderId.');
@@ -64,13 +71,14 @@ app.post('/webhook', async (req, res) => {
 
                 const responseText = getResponseForMessage(cleanText);
 
-                if (responseText) {
-                    console.log(`🚀 [Coincidencia] Enviando respuesta: "${responseText}"`);
-
-                    await sendInstagramMessage(senderId, responseText);
-                } else {
+                if (!responseText) {
                     console.log(`⚠️ [Sin coincidencia] Ninguna regla encontrada para: "${cleanText}"`);
+                    continue;
                 }
+
+                console.log(`🚀 [Coincidencia] Enviando respuesta: "${responseText}"`);
+
+                await sendInstagramMessage(senderId, responseText);
             }
         }
     } catch (error) {
